@@ -1,243 +1,362 @@
-# PDF-Toolkit
+# PDF.me
 
-Ein PDF-Werkzeugkasten, der **lokal auf dem eigenen Rechner** läuft. Kein Upload zu
-einem fremden Dienst, keine Wasserzeichen, keine Seitenlimits – die Dateien bleiben
-auf der Maschine, auf der das Programm gestartet wurde.
-
-Bedienbar auf zwei Wegen: als Weboberfläche im Browser oder als Kommandozeilen-Werkzeug
-für wiederkehrende Abläufe.
-
----
-
-## Was es kann
-
-| Werkzeug | Was es tut |
-|---|---|
-| **Zusammenfügen** | Mehrere PDFs aneinanderhängen, Reihenfolge per Ziehen, pro Datei nur bestimmte Seiten, Lesezeichen je Quelldokument |
-| **Teilen** | Nach Seitenbereichen, jede Seite einzeln, in Blöcke fester Grösse, oder eine Auswahl extrahieren |
-| **Organisieren** | Seiten als Miniaturen umsortieren, drehen, löschen; ein zweites PDF einfügen |
-| **Bearbeiten** | Text, Bilder, Rahmen, Ellipsen, Linien, Markierungen und **echte Schwärzungen** setzen; Wasserzeichen und Seitenzahlen |
-| **Formulare** | Felder auslesen, ausfüllen und fest einbrennen (flatten) |
-| **Umwandeln** | PDF → Word (.docx), PDF → Text, PDF → Bilder, Bilder → PDF |
-| **Schützen** | Passwort setzen (AES-256) oder entfernen, Dateigrösse verringern |
-
----
-
-## Schnellstart
+Lokale Web-App zum Bearbeiten, Zusammenführen, Teilen, Umsortieren und Konvertieren von PDFs.
+Läuft auf dem eigenen Rechner, wird im Browser bedient und speichert keine Dateien.
 
 ```bash
-git clone <dein-repo> pdf-toolkit
-cd pdf-toolkit
-
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-python run.py
+npm install
+cp .env.example .env.local     # Passwort und Secret eintragen
+npm run dev                    # http://localhost:3000
 ```
-
-Der Browser öffnet sich auf <http://127.0.0.1:5000>. Beenden mit `Strg+C`.
-
-> **Word-Export ist optional.** `pdf2docx` zieht grössere Abhängigkeiten nach. Ohne
-> das Paket läuft alles andere normal weiter, der Knopf „In Word" ist dann
-> ausgegraut. Nachrüsten mit `pip install pdf2docx`.
 
 ---
 
-## Kommandozeile
+## Inhalt
 
-Für Stapelverarbeitung – etwa „alle Rechnungen eines Monats zusammenfügen und
-nummerieren" – ist die CLI schneller als jede Oberfläche:
+- [Was die App kann](#was-die-app-kann)
+- [Einrichtung](#einrichtung)
+- [Wie die Bearbeitung funktioniert](#wie-die-bearbeitung-funktioniert)
+- [Architektur](#architektur)
+- [Optionale Zusatzprogramme](#optionale-zusatzprogramme)
+- [Grenzen](#grenzen)
+- [Projektstruktur](#projektstruktur)
+- [Tests](#tests)
+
+---
+
+## Was die App kann
+
+| Bereich | Funktion |
+|---|---|
+| **Text bearbeiten** | Text im PDF anklicken, überschreiben oder löschen. Funktioniert bei normalen PDFs über den Textlayer und bei Scans über Texterkennung. |
+| **Seiten** | Umsortieren per Ziehen, drehen, löschen, Seiten aus anderen PDFs einfügen — alles in einem Durchgang. |
+| **Zusammenführen** | Beliebig viele PDFs in frei wählbarer Reihenfolge zu einem Dokument. |
+| **Teilen** | Nach Seitenbereichen (`1-3, 5, 8-12`) oder in Einzelseiten. Mehrere Teile kommen als ZIP. |
+| **Konvertieren** | Word → PDF und PDF → Word. |
+
+**Dateien werden nicht gespeichert.** Hochladen, verarbeiten, herunterladen — die Verarbeitung
+läuft im Arbeitsspeicher, es gibt keine Datenbank, keine Ablage und keine Historie. Temporäre
+Dateien entstehen nur bei der Word-Konvertierung und werden sofort danach gelöscht.
+
+---
+
+## Einrichtung
+
+### Voraussetzungen
+
+- **Node.js 20 oder neuer** ([nodejs.org](https://nodejs.org))
+- **LibreOffice** — nur für Word → PDF nötig. Ohne LibreOffice läuft alles andere normal,
+  und die Oberfläche weist an der Stelle darauf hin.
+  - macOS: `brew install --cask libreoffice`
+  - Ubuntu/Debian: `sudo apt install libreoffice-writer`
+  - Windows: [libreoffice.org/download](https://www.libreoffice.org/download/)
+
+> Wichtig bei Linux: `libreoffice-core` allein reicht nicht. Ohne das Paket
+> `libreoffice-writer` existiert `soffice` zwar, kann aber keine Textdokumente laden.
+> Die App prüft das beim Start des Konvertieren-Bereichs mit einer echten Testkonvertierung
+> und sagt Bescheid, statt später mit einem unverständlichen Fehler abzubrechen.
+
+### Installieren
 
 ```bash
-python -m pdftoolkit.cli --help          # Übersicht aller Befehle
-# nach "pip install -e ." auch einfach:  pdftoolkit --help
-
-# Zusammenfügen, aus der zweiten Datei nur die Seiten 1-3
-pdftoolkit merge deckblatt.pdf bericht.pdf -o final.pdf --pages all 1-3
-
-# Teilen
-pdftoolkit split bericht.pdf -o teile/ --ranges 1-3 4-8 9-
-pdftoolkit split bericht.pdf -o einzeln/ --every-page
-pdftoolkit extract bericht.pdf -o auszug.pdf --pages 2,5,9-12
-
-# Organisieren: Seite 2 und 5 raus, Seiten 1-3 drehen, dann neu sortieren
-pdftoolkit organize scan.pdf -o final.pdf --delete 2,5 --rotate 1-3 --degrees 90 --order 3,1,2
-
-# Bearbeiten
-pdftoolkit watermark angebot.pdf -o entwurf.pdf --text ENTWURF --opacity 0.3
-pdftoolkit numbers bericht.pdf -o nummeriert.pdf --template "Seite {page} von {total}"
-
-# Umwandeln
-pdftoolkit word bericht.pdf -o bericht.docx
-pdftoolkit text bericht.pdf --pages 1-3
-pdftoolkit images bericht.pdf -o bilder/ --dpi 300 --format jpg
-
-# Formulare
-pdftoolkit form list anmeldung.pdf
-pdftoolkit form fill anmeldung.pdf -o fertig.pdf --set name=Daniel --set agb=true --flatten
-
-# Schutz
-pdftoolkit encrypt vertrag.pdf -o vertrag_geschuetzt.pdf --set-password geheim
-pdftoolkit compress scan.pdf -o scan_klein.pdf --quality 60
+npm install
 ```
 
-Jeder Befehl kennt `--password`, falls das Ausgangs-PDF geschützt ist.
+Der Installationsschritt kopiert nebenbei die Laufzeitdateien von pdf.js und tesseract.js nach
+`public/` (siehe [Architektur](#architektur)).
 
----
+### Konfigurieren
 
-## Wie es aufgebaut ist
-
-Drei Schichten, jede kennt nur die darunterliegende:
-
-```
-Browser (static/js/app.js)          Kommandozeile (cli.py)
-            │                                │
-            └──────► app.py (HTTP) ──────────┤   ← übersetzt Eingaben in Aufrufe
-                          │                  │
-                     storage.py              │   ← ordnet Dateien einer Sitzung zu
-                          │                  │
-                          └──► core/ ◄───────┘   ← die eigentliche Arbeit
-```
-
-**`pdftoolkit/core/`** kennt weder Flask noch HTTP – nur Dateipfade rein, Dateipfade
-raus. Genau deshalb kann die CLI dieselbe Logik ohne Umwege benutzen, und genau
-deshalb sind die Werkzeuge einzeln testbar.
-
-| Datei | Zuständig für |
-|---|---|
-| `core/pages.py` | Seitenangaben wie `1-3,7,10-` verstehen |
-| `core/document.py` | PDFs öffnen, entschlüsseln, beschreiben |
-| `core/merge.py`, `split.py`, `organize.py` | Struktur (via **pypdf**) |
-| `core/edit.py`, `render.py` | Inhalt und Darstellung (via **PyMuPDF**) |
-| `core/forms.py` | Formularfelder (via **PyMuPDF**) |
-| `core/convert.py` | Word, Text, Bilder (via **pdf2docx** und **PyMuPDF**) |
-| `core/security.py` | Verschlüsselung und Komprimierung |
-| `storage.py` | Arbeitsbereich je Browser-Sitzung |
-| `app.py` | HTTP-Routen |
-| `cli.py` | Kommandozeile |
-
-### Warum zwei PDF-Bibliotheken?
-
-Sie sind unterschiedlich gut in unterschiedlichen Dingen:
-
-- **pypdf** arbeitet auf der Objektstruktur des PDF. Seiten kopieren, anhängen,
-  drehen, verschlüsseln – dabei bleibt alles andere unangetastet.
-- **PyMuPDF** rendert und zeichnet. Text setzen, Bilder einfügen, Seiten als PNG
-  ausgeben, Formularfelder auslesen – dafür gibt es in pypdf kein Gegenstück.
-
----
-
-## Konzepte, die man einmal verstanden haben sollte
-
-### Seitenangaben
-
-Überall dieselbe Schreibweise, 1-basiert wie im PDF-Betrachter:
-
-| Eingabe | Bedeutung |
-|---|---|
-| `5` | nur Seite 5 |
-| `2-6` | Seiten 2 bis 6 |
-| `-3` | vom Anfang bis Seite 3 |
-| `7-` | ab Seite 7 bis zum Ende |
-| `1-3,7,10-` | kombiniert |
-| `3,1,2` | Reihenfolge bleibt erhalten – so wird umsortiert |
-| leer / `all` | alle Seiten |
-
-### Ergebnisse sind wieder Eingaben
-
-Jedes Ergebnis landet als neue Datei im Arbeitsbereich (grün markiert) und kann
-sofort weiterverarbeitet werden: zusammenfügen → nummerieren → verschlüsseln, ohne
-zwischendurch herunterzuladen. Das Original bleibt dabei immer unverändert.
-
-### Schwärzen ist nicht Übermalen
-
-Ein schwarzes Rechteck über einem Text sieht aus wie geschwärzt – der Text steht aber
-weiterhin in der Datei und lässt sich markieren und kopieren. Das Werkzeug
-**Schwärzen** entfernt den Inhalt tatsächlich aus dem Dokument (`apply_redactions`).
-Ein Test prüft genau das: Nach der Schwärzung darf der Text nicht mehr extrahierbar
-sein.
-
-### Koordinaten als Anteil
-
-Elemente in der Bearbeiten-Ansicht werden als Anteil der Seite gespeichert (`0.0`
-bis `1.0`), nicht in Pixeln. Dadurch sitzt ein Element bei jedem Zoom und auf jedem
-Seitenformat an derselben Stelle. Die Umrechnung in PDF-Punkte passiert im Server.
-
-Für die CLI lässt sich derselbe Aufbau als JSON übergeben:
-
-```json
-[
-  {"type": "text", "page": 1, "x": 0.1, "y": 0.5, "w": 0.6, "h": 0.08,
-   "text": "Geprüft am 09.09.2026", "size": 14, "color": "#000000"},
-  {"type": "redact", "page": 2, "x": 0.1, "y": 0.2, "w": 0.5, "h": 0.05},
-  {"type": "rect", "page": 3, "x": 0.1, "y": 0.1, "w": 0.3, "h": 0.1, "color": "#d92d20"}
-]
-```
+`.env.example` nach `.env.local` kopieren und ausfüllen:
 
 ```bash
-pdftoolkit edit bericht.pdf -o final.pdf --annotations elemente.json
+cp .env.example .env.local
 ```
 
-Typen: `text`, `image`, `rect`, `ellipse`, `line`, `highlight`, `redact`.
-
-### Arbeitsbereich und Passwörter
-
-Jede Browser-Sitzung bekommt einen eigenen Ordner. Dateien werden über eine
-zufällige ID angesprochen, der Originalname steht nur im Manifest – dadurch kann ein
-Dateiname nicht aus dem Ordner herausführen. Alte Arbeitsbereiche werden nach
-zwölf Stunden automatisch gelöscht.
-
-Passwörter geschützter PDFs bleiben **nur im Browser-Speicher** der laufenden Seite.
-Sie werden weder gespeichert noch protokolliert. Nach dem Neuladen der Seite fragt
-das Programm erneut.
-
----
-
-## Einstellungen
-
-Alles über Umgebungsvariablen, nichts muss im Code geändert werden:
-
-| Variable | Standard | Wirkung |
+| Variable | Pflicht | Bedeutung |
 |---|---|---|
-| `PDFTOOLKIT_HOST` | `127.0.0.1` | Nur lokal erreichbar. Bewusst nicht `0.0.0.0`. |
-| `PDFTOOLKIT_PORT` | `5000` | Port |
-| `PDFTOOLKIT_WORKSPACE` | Temp-Ordner | Wo die Arbeitsdateien liegen |
-| `PDFTOOLKIT_MAX_UPLOAD_MB` | `200` | Obergrenze je Upload |
-| `PDFTOOLKIT_RETENTION_HOURS` | `12` | Aufbewahrung der Arbeitsbereiche |
-| `PDFTOOLKIT_DEBUG` | `false` | Flask-Debugmodus |
+| `APP_PASSWORD` | ja | Passwort für den Login. |
+| `AUTH_SECRET` | ja | Schlüssel zum Signieren des Session-Cookies, mindestens 32 Zeichen. |
+| `SESSION_HOURS` | nein | Gültigkeitsdauer der Anmeldung, Vorgabe 12 Stunden. |
+| `MAX_UPLOAD_MB` | nein | Grösstmögliche Datei, Vorgabe 100 MB. |
+| `SOFFICE_PATH` | nein | Pfad zu `soffice`, falls er nicht im Suchpfad liegt. |
+
+Secret erzeugen:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+### Starten
+
+```bash
+npm run dev      # Entwicklung, lädt Änderungen automatisch nach
+npm run build && npm start   # schnellere Fassung für den täglichen Gebrauch
+```
+
+Danach [http://localhost:3000](http://localhost:3000) im Browser öffnen.
+
+### Für Kollegen im gleichen Netz freigeben
+
+`npm start` lauscht auch auf der Netzwerkadresse des Rechners; Kollegen erreichen die App dann
+unter `http://<deine-ip>:3000` mit demselben Passwort. Der Zugang ist damit im lokalen Netz
+offen — für den Einsatz über das Internet hinaus gehören ein HTTPS-Zugang davor und
+persönliche Zugangsdaten statt eines gemeinsamen Passworts.
+
+---
+
+## Wie die Bearbeitung funktioniert
+
+Der Abschnitt ist der wichtigste, weil sich hier die Möglichkeiten und Grenzen der App erklären.
+
+### Warum Text in einem PDF nicht wie in Word funktioniert
+
+Ein Word-Dokument speichert Absätze. Ein PDF speichert etwas ganz anderes: eine Liste von
+Zeichenanweisungen der Form *„setze die Schrift Helvetica in 11 pt, gehe zu Position (72, 700),
+zeichne die Glyphen H-a-l-l-o"*. Es gibt keine Absätze, keine Zeilen und keinen Textfluss —
+nur Glyphen an festen Koordinaten.
+
+Daraus folgt alles Weitere: Text kann nicht umbrechen, wenn er länger wird, und man kann nicht
+einfach „mittendrin tippen". Was PDF-Editoren tun — auch die kommerziellen — ist ein
+Austausch an Ort und Stelle.
+
+### Der Ablauf in vier Schritten
+
+**1. Seite anzeigen und Textpositionen ermitteln**
+
+pdf.js rendert die Seite in ein Canvas und liefert gleichzeitig zu jedem Textfragment die
+Transformationsmatrix. Aus ihr ergeben sich Position, Schriftgrösse und Leserichtung.
+
+**2. Bearbeitbare Felder darüberlegen**
+
+Über das Bild kommt für jedes Fragment ein unsichtbares, bearbeitbares Feld — exakt an der
+Stelle, in der passenden Grösse und Neigung. Es sieht aus, als bearbeite man das PDF direkt;
+tatsächlich bearbeitet man eine Auflage.
+
+**3. Bei Scans: Texterkennung**
+
+Ein eingescanntes PDF enthält nur ein Bild. Hat eine Seite kaum Text, meldet die App das und
+bietet Texterkennung an. Tesseract liefert dann jedes erkannte Wort mit Rechteck und Grundlinie
+zurück — ab da läuft alles identisch zu Schritt 2, es macht also keinen Unterschied mehr, ob
+das PDF gescannt war.
+
+**4. Beim Speichern: entfernen, übermalen, neu zeichnen**
+
+Serverseitig passieren drei Dinge pro geänderter Stelle:
+
+1. **Der Originaltext wird aus dem Dokument entfernt.** Der Inhaltsstrom der Seite wird
+   durchgelesen, die Textmatrix mitgeführt und so der Zeichenbefehl an der gesuchten Position
+   gefunden. Sein Textinhalt wird geleert.
+2. **Die Stelle wird übermalt** — mit der Hintergrundfarbe, die vorher aus dem gerenderten
+   Bild gemessen wurde. Nötig bleibt das auch nach Schritt 1: bei Scans steht der Text im Bild,
+   und Unterstreichungen oder farbige Hinterlegungen verschwinden nicht mit dem Textbefehl.
+3. **Der neue Text wird gezeichnet**, in der gemessenen Textfarbe und an derselben Grundlinie.
+   Passt er nicht in die alte Breite, wird die Schrift so weit verkleinert, bis er hineinpasst.
+
+### Warum Schritt 1 wichtig ist
+
+Nur zu übermalen würde reichen, damit es *aussieht*, als sei der Text geändert. Der alte Text
+bliebe aber im Dokument: markierbar, kopierbar, per Suche auffindbar und für jedes
+Auswerteprogramm sichtbar. Wer in einer Offerte 500 auf 400 ändert, verschickt sonst ein
+Dokument, in dem die 500 noch steht.
+
+Der Eingriff in den Inhaltsstrom hat eine bewusste Vorsichtsregel: Nach jedem Textbefehl rückt
+die Schreibmarke um die Breite des Geschriebenen weiter, und diese Breite hängt von den
+Metriken der eingebetteten Schrift ab. Wo sie sich nicht sicher bestimmen lässt, gilt die
+Position als unsicher, und die Stelle wird **nicht** angefasst — dann bleibt es beim Übermalen.
+
+Danach wird das Ergebnis überprüft: Es muss lesbar sein und der alte Text darf an seiner
+Position nicht mehr auftauchen. Schlägt die Prüfung fehl, liefert die App die Fassung ohne
+Eingriff aus. Ein bloss übermaltes PDF ist deutlich besser als ein beschädigtes.
+
+**Nach dem Speichern sagt die App, was passiert ist.** Konnte nicht überall entfernt werden,
+erscheint ein Hinweis mit der Anzahl der betroffenen Stellen — damit bei vertraulichen
+Inhalten klar ist, wo nachzusehen ist.
+
+---
+
+## Architektur
+
+### Überblick
+
+```
+Browser                                  Server (Node)
+─────────────────────────────────        ──────────────────────────────
+pdf.js      Seite rendern,               pdf-lib     Seiten kopieren, drehen,
+            Textpositionen                           zeichnen, Inhaltsströme
+tesseract.js  Texterkennung              pdf.js      Text mit Position auslesen
+Canvas      Farben messen                docx        Word-Datei schreiben
+                                         LibreOffice Word → PDF
+        │                                        ▲
+        └──── multipart-Upload ──────────────────┘
+              Binärdatei zurück, nichts gespeichert
+```
+
+### Warum diese Bibliotheken
+
+| Baustein | Wahl | Begründung |
+|---|---|---|
+| Rahmen | **Next.js** | Oberfläche und Server in einem Prozess, ein Startbefehl. |
+| PDF schreiben | **pdf-lib** | Reines JavaScript, kein Systemprogramm nötig; deckt Kopieren, Drehen, Zeichnen und Inhaltsströme ab. |
+| PDF lesen | **pdf.js** | Der einzige Renderer, der auch die Position jedes Textfragments liefert — die Grundlage der Bearbeitung. |
+| Texterkennung | **tesseract.js** | Läuft als WebAssembly im Browser, ohne Installation. |
+| Word schreiben | **docx** | Erzeugt .docx-Dateien ohne Office. |
+| Word lesen | **LibreOffice** | Ein .docx layoutgetreu darzustellen heisst, Word-Layout nachzubauen. Dafür gibt es in JavaScript nichts Vergleichbares. |
+| Anmeldung | **jose** | Signiertes Cookie, keine Datenbank — passend zur zustandslosen App. |
+
+### Wo Arbeit stattfindet und warum
+
+**Im Browser:** Anzeige, Textpositionen, Texterkennung, Farbmessung. Das hält den Server frei,
+vermeidet Uploads beim Blättern — und gescannte Dokumente verlassen den Rechner nie, weil die
+Texterkennung lokal läuft.
+
+**Auf dem Server:** alles, was das PDF verändert. Der Grund ist nicht Rechenleistung, sondern
+Verlässlichkeit: pdf-lib schreibt dort in einer kontrollierten Umgebung, und die Datei geht als
+fertiger Download zurück.
+
+### Umgang mit grossen Dokumenten
+
+- Im Bearbeiten-Bereich wird immer nur die aktuelle Seite gerendert. Ein 500-Seiten-Dokument
+  öffnet damit genauso schnell wie ein einseitiges.
+- Vorschaubilder im Seiten-Bereich entstehen erst, wenn die Kachel in Sichtweite kommt, und
+  werden zwischengespeichert — Umsortieren und Drehen lösen kein erneutes Rendern aus.
+- Ein Rendervorgang wird abgebrochen, sobald weitergeblättert wird.
+- Serverseitig wird pro Quelldatei nur einmal kopiert, nicht pro Seite.
+
+Gemessen mit einem Dokument aus 120 Seiten und rund 4000 Textfragmenten: Öffnen samt erster
+Seite 0,4 s, Seitenwechsel 0,15 s, Neuaufbau aller 120 Seiten auf dem Server 0,16 s.
+
+### Anmeldung
+
+Ein Passwort aus `APP_PASSWORD`, verglichen in konstanter Zeit. Bei Erfolg wird ein signiertes
+JWT in einem `HttpOnly`-Cookie gesetzt. Eine Middleware prüft jede Anfrage; API-Aufrufe ohne
+gültige Anmeldung erhalten 401, Seitenaufrufe eine Weiterleitung zum Login. Kein Nutzerkonto,
+keine Datenbank, kein Serverzustand.
+
+---
+
+## Optionale Zusatzprogramme
+
+Beide sind freiwillig — die App läuft ohne sie und sagt jeweils, was fehlt.
+
+### Bessere PDF → Word-Umwandlung
+
+Eingebaut ist ein Konverter, der aus den Textpositionen Zeilen und Absätze rekonstruiert und
+Schriftgrösse, Fett/Kursiv sowie Ausrichtung überträgt. Tabellen kommen dabei als Text an.
+
+Für höhere Layouttreue, inklusive Tabellen und Textrahmen:
+
+```bash
+pip install pdf2docx
+```
+
+Die App erkennt das von selbst und nutzt es dann.
+
+### Texterkennung ohne Internet
+
+Beim ersten Lauf lädt tesseract.js die Sprachdaten (rund 15 MB je Sprache) von einem CDN und
+legt sie im Browser ab. Wer das vermeiden will oder in einem abgeschotteten Netz arbeitet:
+
+```bash
+npm run ocr:offline            # Deutsch und Englisch
+npm run ocr:offline -- fra     # weitere Sprachen
+```
+
+Die Daten landen in `public/tessdata/` und werden automatisch von dort geladen. Das
+Worker-Programm und die WebAssembly-Dateien liegen ohnehin schon lokal.
+
+---
+
+## Grenzen
+
+Ehrlich benannt, damit es keine Überraschungen gibt:
+
+- **Text fliesst nicht um.** Wird ein Text länger, verkleinert sich die Schrift, statt in die
+  nächste Zeile zu laufen. Das liegt am Aufbau von PDFs, nicht an der App.
+- **Schriften werden zugeordnet, nicht übernommen.** Eingebettete Schriften enthalten meist nur
+  die tatsächlich verwendeten Zeichen; ein neu getipptes Zeichen fehlt darin. Neuer Text wird
+  deshalb in der passenden Standardschrift gesetzt (serifenlos, Serif oder Monospace, jeweils
+  normal/fett/kursiv). Bei ungewöhnlichen Hausschriften ist der Unterschied sichtbar.
+- **Zeichenvorrat.** Die Standardschriften decken Westeuropa ab, Umlaute und ß eingeschlossen.
+  Typografische Anführungszeichen und Gedankenstriche werden auf einfache Zeichen abgebildet;
+  Zeichen ausserhalb (etwa Kyrillisch) fallen weg.
+- **Nicht jede Stelle lässt sich restlos entfernen.** Siehe
+  [Wie die Bearbeitung funktioniert](#warum-schritt-1-wichtig-ist) — die App meldet, wenn es
+  vorkommt.
+- **Texterkennung ist nicht fehlerfrei.** Schräg eingescannte, kontrastarme oder handschriftliche
+  Vorlagen liefern Lücken. Eine höhere Zoomstufe vor dem Erkennen hilft oft.
+- **PDF → Word ist eine Rekonstruktion.** Absätze und Ausrichtung stimmen meist, mehrspaltige
+  Layouts und Tabellen nicht zwangsläufig.
+- **Passwortgeschützte PDFs** lassen sich nur öffnen, wenn sie kein Öffnungspasswort haben.
+
+---
+
+## Projektstruktur
+
+```
+src/
+├── middleware.ts              Zugangsschutz für alle Routen
+├── app/
+│   ├── page.tsx               Arbeitsbereich
+│   ├── login/                 Anmeldung
+│   └── api/
+│       ├── auth/              Anmelden, Abmelden
+│       ├── merge/             Zusammenführen
+│       ├── split/             Teilen (PDF oder ZIP)
+│       ├── organize/          Seiten neu aufbauen
+│       ├── edit/              Textänderungen anwenden
+│       ├── convert/           Word ↔ PDF
+│       └── capabilities/      Meldet, welche Zusatzprogramme da sind
+├── lib/
+│   ├── config.ts              Einstellungen aus der Umgebung
+│   ├── auth.ts                Session-Cookie
+│   ├── http.ts                Gemeinsame Bausteine der API-Routen
+│   ├── pdf/
+│   │   ├── operations.ts      Zusammenführen, Teilen, Seiten, Textänderungen
+│   │   ├── contentStream.ts   Originaltext aus dem Inhaltsstrom entfernen
+│   │   ├── fonts.ts           Schriftzuordnung und Zeichenvorrat
+│   │   └── types.ts           Gemeinsame Datentypen
+│   ├── convert/
+│   │   ├── libreoffice.ts     Word → PDF, inklusive Funktionsprüfung
+│   │   ├── pdfToDocx.ts       PDF → Word, zwei Wege
+│   │   └── extract.ts         Text mit Position auslesen (Server)
+│   └── client/
+│       ├── pdfjs.ts           pdf.js im Browser
+│       ├── textLayer.ts       Textfragmente zu bearbeitbaren Feldern
+│       ├── ocr.ts             Texterkennung
+│       ├── colors.ts          Hintergrund- und Textfarbe messen
+│       └── download.ts        Hochladen und Ergebnis herunterladen
+└── components/                Oberfläche
+
+scripts/
+├── copy-assets.mjs            Laufzeitdateien nach public/ (läuft automatisch)
+├── fetch-langdata.mjs         Sprachdaten für den Offline-Betrieb
+└── smoke.mjs                  Test über die echten Schnittstellen
+```
 
 ---
 
 ## Tests
 
 ```bash
-pip install pytest
-python -m pytest -q
+npm run build && npm start &   # Server starten
+npm run smoke                  # 14 Tests über die echten Schnittstellen
 ```
 
-115 Tests decken Kernlogik, HTTP-Schnittstelle und CLI ab – einschliesslich der
-Fälle, die schiefgehen sollen: unbekannte Formularfelder, Löschen aller Seiten,
-ein Bildpfad ausserhalb des Arbeitsbereichs, Quelldatei als eigenes Ziel.
-Die Test-PDFs werden zur Laufzeit erzeugt, es liegen keine Binärdateien im Repo.
+Geprüft werden: Zugangsschutz, Anmeldung, Zusammenführen, Teilen nach Bereichen und in
+Einzelseiten, Fehlerbehandlung bei ungültigen Bereichen, Umsortieren mit Drehung und
+Mehrfachverwendung derselben Seite, Textersetzung, das tatsächliche Verschwinden des
+Originaltexts, das Erhaltenbleiben des übrigen Texts, Umlaute und Sonderzeichen sowie beide
+Konvertierungsrichtungen.
 
----
+Weitere Prüfungen:
 
-## Grenzen
-
-- **Keine Texterkennung (OCR).** Ein gescanntes PDF ohne Textebene liefert bei
-  „In Text" und „In Word" nichts Brauchbares. Dafür bräuchte es Tesseract.
-- **Bestehenden Text bearbeiten geht nicht.** Das Programm legt neue Elemente auf
-  die Seite und kann Inhalte entfernen (schwärzen) – aber es ist kein
-  Textverarbeitungsprogramm für vorhandene Absätze. Das kann kaum ein PDF-Werkzeug
-  wirklich zuverlässig, weil ein PDF keine Absätze speichert, sondern platzierte
-  Zeichen.
-- **Für einen Rechner gedacht.** Der Server bindet absichtlich nur an
-  `127.0.0.1`. Für den Mehrbenutzerbetrieb bräuchte es Authentifizierung und einen
-  richtigen WSGI-Server.
+```bash
+npm run typecheck
+```
 
 ---
 
 ## Lizenz
 
-MIT – siehe [LICENSE](LICENSE).
+MIT — siehe [LICENSE](LICENSE).

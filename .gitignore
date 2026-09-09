@@ -1,20 +1,30 @@
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-env/
-build/
-dist/
-*.egg-info/
-.pytest_cache/
-.coverage
-htmlcov/
+# Abhängigkeiten
+/node_modules/
+/.pnp
+.pnp.*
 
-# Arbeitsdateien und Testausgaben
+# Next.js
+/.next/
+/out/
+/build/
+next-env.d.ts
+*.tsbuildinfo
+
+# Umgebung — enthält Passwort und Session-Secret, gehört nie ins Repository
+.env
+.env*.local
+
+# Laufzeit-Assets von pdf.js und tesseract.js.
+# Werden bei jeder Installation aus node_modules erzeugt (scripts/copy-assets.mjs).
+/public/pdfjs/
+/public/tesseract/
+# Optionale OCR-Sprachdaten (npm run ocr:offline), rund 15 MB je Sprache.
+/public/tessdata/
+
+# Arbeitsdateien
 *.pdf
 *.docx
-!tests/**/*.pdf
-workspaces/
+*.zip
 .DS_Store
 .idea/
 .vscode/

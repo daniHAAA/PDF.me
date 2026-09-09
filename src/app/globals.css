@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #16181d;
+  --color-muted: #6b7280;
+  --color-line: #e3e5ea;
+  --color-surface: #ffffff;
+  --color-canvas: #f4f5f7;
+  --color-accent: #2f5bea;
+  --color-accent-soft: #eaeffd;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Der Textlayer über der gerenderten Seite. Die Boxen liegen exakt auf dem
+   Originaltext; sichtbar wird nur ein zarter Rahmen beim Überfahren. */
+.text-box {
+  position: absolute;
+  transform-origin: 0 0;
+  white-space: pre;
+  cursor: text;
+  border-radius: 2px;
+  outline: 1px solid transparent;
+  transition: background-color 120ms ease, outline-color 120ms ease;
+}
+
+.text-box:hover {
+  background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  outline-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+
+/* Geänderte Stellen bekommen nur eine Markierung. Die Füllfarbe setzt die
+   Komponente selbst — sie entspricht der Farbe, die später ins PDF geschrieben
+   wird, damit die Vorschau dem Ergebnis entspricht. */
+.text-box[data-edited="true"] {
+  outline-color: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b;
+}
+
+.text-box:focus {
+  background-color: var(--color-surface);
+  outline: 2px solid var(--color-accent);
+  z-index: 20;
+}
+
+/* Beim Scrollen durch lange Dokumente sollen Seiten nicht springen. */
+.page-shell {
+  contain: layout paint;
+}
