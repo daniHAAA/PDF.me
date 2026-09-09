@@ -1,0 +1,7 @@
+# Repo auf github.com anlegen (leer, ohne README), dann:
+git clone https://github.com/daniHAAA/offer_AAA.git tmp && cd tmp
+git checkout claude/practical-babbage-wwhpu6
+cd pdf-toolkit && rm -rf ../.git && git init && git add .
+git commit -m "PDF-Toolkit"
+git remote add origin https://github.com/daniHAAA/pdf-toolkit.git
+git push -u origin main
