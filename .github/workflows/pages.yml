@@ -15,7 +15,10 @@ name: GitHub Pages
 
 on:
   push:
-    branches: [main, claude/pdf-web-app]
+    # Nur der Standard-Branch: Die Umgebung "github-pages" lässt
+    # Veröffentlichungen von anderen Branches nicht zu und würde sie ohne
+    # ausgeführten Schritt abweisen.
+    branches: [main]
   # Erlaubt das Auslösen von Hand im Reiter "Actions".
   workflow_dispatch:
 
