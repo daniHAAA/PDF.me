@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "postinstall": "node scripts/copy-assets.mjs",
+    "setup": "node scripts/setup-env.mjs",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "ocr:offline": "node scripts/fetch-langdata.mjs"

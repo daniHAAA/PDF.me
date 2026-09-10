@@ -5,9 +5,12 @@ Läuft auf dem eigenen Rechner, wird im Browser bedient und speichert keine Date
 
 ```bash
 npm install
-cp .env.example .env.local     # Passwort und Secret eintragen
-npm run dev                    # http://localhost:3000
+npm run setup      # fragt nach dem Passwort und legt .env.local an
+npm run dev        # http://localhost:3000
 ```
+
+Läuft auf macOS, Windows und Linux. Voraussetzung ist Node.js — siehe
+[Einrichtung](#einrichtung).
 
 ---
 
@@ -42,36 +45,82 @@ Dateien entstehen nur bei der Word-Konvertierung und werden sofort danach gelös
 
 ## Einrichtung
 
-### Voraussetzungen
+### Schritt 1: Node.js installieren
 
-- **Node.js 20 oder neuer** ([nodejs.org](https://nodejs.org))
-- **LibreOffice** — nur für Word → PDF nötig. Ohne LibreOffice läuft alles andere normal,
-  und die Oberfläche weist an der Stelle darauf hin.
-  - macOS: `brew install --cask libreoffice`
-  - Ubuntu/Debian: `sudo apt install libreoffice-writer`
-  - Windows: [libreoffice.org/download](https://www.libreoffice.org/download/)
+Ohne Node.js gibt es kein `npm`, und nichts weiter funktioniert. Version 20 oder neuer.
+
+**Windows** (PowerShell):
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+winget install Git.Git
+```
+
+> **PowerShell danach schliessen und neu öffnen.** Erst dann kennt sie die neuen Befehle.
+> Ohne Neustart meldet sie weiterhin *„Die Benennung `npm` wurde nicht als Name eines Cmdlet
+> … erkannt"* — das ist kein Fehler der Installation, die Sitzung hat den Suchpfad nur noch
+> nicht neu eingelesen.
+
+**macOS** (Terminal, mit [Homebrew](https://brew.sh)):
+
+```bash
+brew install node git
+```
+
+Ohne Homebrew: das Installationsprogramm von [nodejs.org](https://nodejs.org) verwenden;
+Git bringt macOS mit, sobald einmal `xcode-select --install` gelaufen ist.
+
+Prüfen, ob es geklappt hat — beide Befehle müssen eine Versionsnummer ausgeben:
+
+```
+node -v
+git -v
+```
+
+### Schritt 2: Optional LibreOffice
+
+Nur für **Word → PDF** nötig. Ohne LibreOffice läuft alles andere normal, und die Oberfläche
+weist an genau der Stelle darauf hin.
+
+| System | Befehl |
+|---|---|
+| Windows | `winget install TheDocumentFoundation.LibreOffice` |
+| macOS | `brew install --cask libreoffice` |
+| Ubuntu/Debian | `sudo apt install libreoffice-writer` |
 
 > Wichtig bei Linux: `libreoffice-core` allein reicht nicht. Ohne das Paket
 > `libreoffice-writer` existiert `soffice` zwar, kann aber keine Textdokumente laden.
-> Die App prüft das beim Start des Konvertieren-Bereichs mit einer echten Testkonvertierung
+> Die App prüft das beim Öffnen des Konvertieren-Bereichs mit einer echten Testkonvertierung
 > und sagt Bescheid, statt später mit einem unverständlichen Fehler abzubrechen.
 
-### Installieren
+### Schritt 3: Projekt holen und installieren
 
-```bash
+Auf beiden Systemen identisch:
+
+```
+git clone -b claude/pdf-web-app https://github.com/daniHAAA/PDF.me.git
+cd PDF.me
 npm install
 ```
 
-Der Installationsschritt kopiert nebenbei die Laufzeitdateien von pdf.js und tesseract.js nach
-`public/` (siehe [Architektur](#architektur)).
+`npm install` kopiert nebenbei die Laufzeitdateien von pdf.js und tesseract.js nach `public/`.
 
-### Konfigurieren
+### Schritt 4: Passwort festlegen
 
-`.env.example` nach `.env.local` kopieren und ausfüllen:
-
-```bash
-cp .env.example .env.local
 ```
+npm run setup
+```
+
+Fragt nach einem Passwort und legt `.env.local` mit diesem Passwort und einem zufälligen
+`AUTH_SECRET` an. Eine vorhandene Datei wird nie überschrieben.
+
+Ohne Rückfrage geht es auch:
+
+```
+npm run setup -- meinPasswort
+```
+
+Wer die Datei lieber von Hand schreibt, nimmt `.env.example` als Vorlage:
 
 | Variable | Pflicht | Bedeutung |
 |---|---|---|
@@ -81,29 +130,37 @@ cp .env.example .env.local
 | `MAX_UPLOAD_MB` | nein | Grösstmögliche Datei, Vorgabe 100 MB. |
 | `SOFFICE_PATH` | nein | Pfad zu `soffice`, falls er nicht im Suchpfad liegt. |
 
-Secret erzeugen:
+### Schritt 5: Starten
 
-```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+npm run dev
 ```
 
-### Starten
+Dann [http://localhost:3000](http://localhost:3000) öffnen und mit dem Passwort anmelden.
 
-```bash
-npm run dev      # Entwicklung, lädt Änderungen automatisch nach
-npm run build && npm start   # schnellere Fassung für den täglichen Gebrauch
+Für den täglichen Gebrauch ist die gebaute Fassung schneller:
+
 ```
-
-Danach [http://localhost:3000](http://localhost:3000) im Browser öffnen.
+npm run build
+npm start
+```
 
 ### Für Kollegen im gleichen Netz freigeben
 
 `npm start` lauscht auch auf der Netzwerkadresse des Rechners; Kollegen erreichen die App dann
 unter `http://<deine-ip>:3000` mit demselben Passwort. Der Zugang ist damit im lokalen Netz
-offen — für den Einsatz über das Internet hinaus gehören ein HTTPS-Zugang davor und
-persönliche Zugangsdaten statt eines gemeinsamen Passworts.
+offen — für den Einsatz darüber hinaus gehören ein HTTPS-Zugang davor und persönliche
+Zugangsdaten statt eines gemeinsamen Passworts.
 
----
+### Wenn etwas nicht läuft
+
+| Meldung | Ursache | Lösung |
+|---|---|---|
+| `npm` / `node` / `git` „wurde nicht als Name eines Cmdlet … erkannt" | Nicht installiert, oder die Sitzung kennt den neuen Suchpfad noch nicht | Schritt 1, danach Terminal neu öffnen |
+| `command not found: npm` (macOS) | dasselbe | Schritt 1, danach Terminal neu öffnen |
+| `Umgebungsvariable APP_PASSWORD fehlt` | `.env.local` fehlt | `npm run setup` |
+| `EADDRINUSE … 3000` | Port belegt, meist von einem älteren Start | Anderes Fenster schliessen, oder `npm run dev -- -p 3001` |
+| Word → PDF meldet fehlendes LibreOffice | Schritt 2 übersprungen | LibreOffice installieren, danach Server neu starten |
 
 ## Wie die Bearbeitung funktioniert
 
@@ -329,6 +386,7 @@ src/
 └── components/                Oberfläche
 
 scripts/
+├── setup-env.mjs              Legt .env.local an (npm run setup)
 ├── copy-assets.mjs            Laufzeitdateien nach public/ (läuft automatisch)
 ├── fetch-langdata.mjs         Sprachdaten für den Offline-Betrieb
 └── smoke.mjs                  Test über die echten Schnittstellen
