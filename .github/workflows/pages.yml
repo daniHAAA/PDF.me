@@ -3,8 +3,9 @@
 # Nach dem ersten erfolgreichen Lauf ist die App erreichbar unter
 #   https://<konto>.github.io/<repository>/
 #
-# Einmalig einzurichten: Repository → Settings → Pages → "Source" auf
-# "GitHub Actions" stellen.
+Pages wird beim ersten Lauf automatisch eingeschaltet (siehe "enablement"
+# weiter unten). Klappt das nicht, weil die Rechte fehlen, hilft der Weg von
+# Hand: Repository → Settings → Pages → "Source" auf "GitHub Actions".
 
 name: GitHub Pages
 
@@ -52,6 +53,11 @@ jobs:
         run: npm run build:static -- "/${{ github.event.repository.name }}"
 
       - uses: actions/configure-pages@v5
+        with:
+          # Schaltet Pages ein, falls es das noch nicht ist. Ohne diesen
+          # Schalter bricht der Lauf mit "Get Pages site failed ... Not Found"
+          # ab, solange niemand die Einstellung von Hand vorgenommen hat.
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
