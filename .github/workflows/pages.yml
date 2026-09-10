@@ -3,7 +3,7 @@
 # Nach dem ersten erfolgreichen Lauf ist die App erreichbar unter
 #   https://<konto>.github.io/<repository>/
 #
-Pages wird beim ersten Lauf automatisch eingeschaltet (siehe "enablement"
+# Pages wird beim ersten Lauf automatisch eingeschaltet (siehe "enablement"
 # weiter unten). Klappt das nicht, weil die Rechte fehlen, hilft der Weg von
 # Hand: Repository → Settings → Pages → "Source" auf "GitHub Actions".
 
