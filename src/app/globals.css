@@ -48,8 +48,11 @@ body {
   box-shadow: 0 0 0 1px #f59e0b;
 }
 
+/* Kein Hintergrund an dieser Stelle! Ein deckender Hintergrund würde den
+   gerenderten Originaltext verbergen, während die Schrift der Box selbst noch
+   durchsichtig ist — die Stelle sähe dann beim Anklicken leer aus. Die Farben
+   setzt die Komponente, sobald sie sie aus dem Bild gemessen hat. */
 .text-box:focus {
-  background-color: var(--color-surface);
   outline: 2px solid var(--color-accent);
   z-index: 20;
 }

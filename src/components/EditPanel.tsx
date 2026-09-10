@@ -9,7 +9,7 @@ import { downloadResult } from "@/lib/client/download";
 import { applyEdits } from "@/lib/client/engine";
 import { toFile, type LoadedDoc } from "@/lib/client/types";
 import type { PageViewport } from "@/lib/client/pdfjs";
-import type { TextEdit } from "@/lib/pdf/types";
+import type { Rgb, TextEdit } from "@/lib/pdf/types";
 
 const ZOOM_LEVELS = [0.75, 1, 1.25, 1.5, 2];
 /** Weniger Zeichen als das auf einer Seite heisst: da ist kein Textlayer. */
@@ -28,6 +28,17 @@ export function EditPanel({ doc }: { doc: LoadedDoc }) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveReport, setSaveReport] = useState<string | null>(null);
+
+  /*
+   * Welche Box gerade bearbeitet wird, und die dafür aus dem gerenderten Bild
+   * gemessenen Farben. Ohne diese Farben wäre eine angeklickte Box unlesbar:
+   * Solange nichts geändert wurde, ist die Schrift der Box durchsichtig (man
+   * sieht das gerenderte Original darunter). Sobald die Box aber einen eigenen
+   * Hintergrund bekommt, verdeckt der das Original — und übrig bliebe eine
+   * leere Fläche.
+   */
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const measuredColors = useRef(new Map<string, { color: Rgb; background: Rgb }>());
 
   // Änderungen überleben den Seitenwechsel, deshalb liegen sie ausserhalb der
   // Seitenzustände. Schlüssel ist die Item-ID.
@@ -70,6 +81,9 @@ export function EditPanel({ doc }: { doc: LoadedDoc }) {
 
         setItems(extracted);
         setLooksScanned(textVolume(extracted) < SCAN_THRESHOLD);
+        // Andere Zoomstufe heisst andere Bildkoordinaten — die gemerkten
+        // Farben gehörten zum vorherigen Rendervorgang.
+        measuredColors.current.clear();
       } catch (caught) {
         // Ein abgebrochener Render ist kein Fehler, sondern der Normalfall beim
         // schnellen Blättern.
@@ -100,6 +114,25 @@ export function EditPanel({ doc }: { doc: LoadedDoc }) {
   }, [doc]);
 
   /* ---------- Bearbeiten ---------- */
+
+  /**
+   * Liest Hintergrund- und Schriftfarbe einer Stelle aus dem gerenderten Bild.
+   * Das Ergebnis wird gemerkt: Nach einem Seitenwechsel ist dieses Canvas weg,
+   * die Farben werden aber noch zum Speichern gebraucht.
+   */
+  const measureColors = useCallback((item: EditableItem) => {
+    const cached = measuredColors.current.get(item.id);
+    if (cached) return cached;
+
+    const context = canvasRef.current?.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+
+    const background = sampleBackground(context, item.screen);
+    const measured = { background, color: sampleTextColor(context, item.screen, background) };
+    measuredColors.current.set(item.id, measured);
+    return measured;
+  }, []);
+
   const commitEdit = useCallback(
     (item: EditableItem, rawValue: string) => {
       const value = rawValue.replace(/\s+/g, " ").trim();
@@ -107,14 +140,9 @@ export function EditPanel({ doc }: { doc: LoadedDoc }) {
       const current = previous?.text ?? item.original;
       if (value === current.trim()) return;
 
-      const canvas = canvasRef.current;
-      const context = canvas?.getContext("2d", { willReadFrequently: true });
-      if (!context) return;
-
-      // Farben genau jetzt aus dem gerenderten Bild lesen: nach einem
-      // Seitenwechsel ist dieses Canvas weg.
-      const background = sampleBackground(context, item.screen);
-      const color = sampleTextColor(context, item.screen, background);
+      const measured = measureColors(item);
+      if (!measured) return;
+      const { color, background } = measured;
 
       const edit: TextEdit = {
         pageIndex: pageNumber - 1,
@@ -141,7 +169,7 @@ export function EditPanel({ doc }: { doc: LoadedDoc }) {
 
       setEdits((old) => new Map(old).set(item.id, edit));
     },
-    [edits, pageNumber],
+    [edits, pageNumber, measureColors],
   );
 
   const resetEdit = useCallback((id: string) => {
@@ -298,6 +326,13 @@ export function EditPanel({ doc }: { doc: LoadedDoc }) {
             {items.map((item) => {
               const ratio = Math.min(window.devicePixelRatio || 1, 2);
               const edit = edits.get(item.id);
+              /*
+               * Sichtbar wird die Box nur, wenn sie bearbeitet wurde oder
+               * gerade bearbeitet wird. Sonst bleibt sie durchsichtig und das
+               * gerenderte Original scheint durch — das ist die beste
+               * Darstellung, weil sie die Originalschrift zeigt.
+               */
+              const live = edit ?? (focusedId === item.id ? measuredColors.current.get(item.id) : undefined);
               return (
                 <div
                   key={item.id}
@@ -314,22 +349,28 @@ export function EditPanel({ doc }: { doc: LoadedDoc }) {
                     fontSize: item.screen.fontSize / ratio,
                     lineHeight: `${item.screen.height / ratio}px`,
                     transform: item.screen.angleDeg ? `rotate(${item.screen.angleDeg}deg)` : undefined,
-                    fontFamily:
-                      item.fontFamily === "serif"
-                        ? "Georgia, serif"
-                        : item.fontFamily === "mono"
-                          ? "ui-monospace, monospace"
-                          : "system-ui, sans-serif",
+                    // Dieselben Schriften, die pdf-lib später ins PDF
+                    // zeichnet — so entspricht die Vorschau dem Ergebnis.
+                    fontFamily: PREVIEW_FONTS[item.fontFamily],
                     fontWeight: item.bold ? 600 : 400,
                     fontStyle: item.italic ? "italic" : "normal",
                     // Unbearbeitet: unsichtbar, das gerenderte Original zeigt sich.
                     // Bearbeitet: mit den gemessenen Farben überdeckt — dieselbe
                     // Kombination, die der Server später ins PDF schreibt. So ist
                     // die Vorschau ehrlich.
-                    color: edit ? cssColor(edit.color) : "transparent",
-                    backgroundColor: edit ? cssColor(edit.background) : undefined,
+                    color: live ? cssColor(live.color) : "transparent",
+                    backgroundColor: live ? cssColor(live.background) : undefined,
                   }}
-                  onBlur={(e) => commitEdit(item, e.currentTarget.textContent ?? "")}
+                  onFocus={() => {
+                    // Farben messen, bevor die Box eigene bekommt: Sie werden
+                    // sofort zur Darstellung und später zum Speichern gebraucht.
+                    measureColors(item);
+                    setFocusedId(item.id);
+                  }}
+                  onBlur={(e) => {
+                    setFocusedId(null);
+                    commitEdit(item, e.currentTarget.textContent ?? "");
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Escape") {
                       e.currentTarget.textContent = item.original;
@@ -353,6 +394,17 @@ export function EditPanel({ doc }: { doc: LoadedDoc }) {
     </div>
   );
 }
+
+/**
+ * Schriften für die Vorschau. Bewusst genau die, auf die lib/pdf/fonts.ts beim
+ * Schreiben abbildet — Helvetica, Times und Courier. Eine hübschere Schrift in
+ * der Vorschau würde nur etwas vorspiegeln, was im Ergebnis nicht ankommt.
+ */
+const PREVIEW_FONTS: Record<string, string> = {
+  sans: "Helvetica, Arial, sans-serif",
+  serif: '"Times New Roman", Times, serif',
+  mono: '"Courier New", Courier, monospace',
+};
 
 function cssColor(color: { r: number; g: number; b: number }): string {
   const channel = (value: number) => Math.round(Math.min(1, Math.max(0, value)) * 255);
