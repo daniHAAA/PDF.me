@@ -28,6 +28,11 @@ export function filenameFromResponse(response: Response, fallback: string): stri
 
 export class ApiError extends Error {}
 
+/** Startet den Download eines im Browser erzeugten Ergebnisses. */
+export function downloadResult(result: { blob: Blob; filename: string }): void {
+  downloadBlob(result.blob, result.filename);
+}
+
 /**
  * Schickt ein FormData an eine Route und startet den Download der Antwort.
  * Gibt optionale Hinweise des Servers zurück (etwa zur Konvertierungsqualität).

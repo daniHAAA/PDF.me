@@ -1,4 +1,5 @@
 import { applyTextEdits } from "@/lib/pdf/operations";
+import { extractPages } from "@/lib/convert/extract";
 import type { TextEdit } from "@/lib/pdf/types";
 import { BadRequestError, errorResponse, fileResponse, readJson, readUpload } from "@/lib/http";
 
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     const edits = readJson<TextEdit[]>(form, "edits", []);
     if (edits.length === 0) throw new BadRequestError("Es wurden keine Änderungen übergeben.");
 
-    const { bytes, removedOriginals, coveredOnly } = await applyTextEdits(file, edits);
+    const { bytes, removedOriginals, coveredOnly } = await applyTextEdits(file, edits, extractPages);
 
     // Die Oberfläche liest diese Werte aus und sagt dem Nutzer, ob der alte
     // Text wirklich entfernt oder nur überdeckt werden konnte.

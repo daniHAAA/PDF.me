@@ -2,6 +2,7 @@
 
 import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist/types/src/display/api";
 import type { PageViewport } from "pdfjs-dist/types/src/display/page_viewport";
+import { asset } from "./basePath";
 
 /**
  * Zugriff auf pdf.js im Browser.
@@ -27,7 +28,7 @@ export async function getPdfjs(): Promise<PdfjsModule> {
     modulePromise = import("pdfjs-dist/legacy/build/pdf.mjs").then((pdfjs) => {
       // Der Worker rendert in einem eigenen Thread — ohne ihn friert die
       // Oberfläche beim Rendern grosser Seiten ein.
-      pdfjs.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.mjs";
+      pdfjs.GlobalWorkerOptions.workerSrc = asset("/pdfjs/pdf.worker.min.mjs");
       return pdfjs;
     });
   }
@@ -46,9 +47,9 @@ export async function loadDocument(data: ArrayBuffer): Promise<OpenedDocument> {
   // die Originaldatei wird aber später noch zum Hochladen gebraucht.
   const task = pdfjs.getDocument({
     data: data.slice(0),
-    cMapUrl: "/pdfjs/cmaps/",
+    cMapUrl: asset("/pdfjs/cmaps/"),
     cMapPacked: true,
-    standardFontDataUrl: "/pdfjs/standard_fonts/",
+    standardFontDataUrl: asset("/pdfjs/standard_fonts/"),
   });
 
   // Aufgeräumt wird über den LoadingTask, nicht über das Dokument: nur er kennt

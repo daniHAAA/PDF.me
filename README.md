@@ -1,23 +1,29 @@
 # PDF.me
 
-Lokale Web-App zum Bearbeiten, Zusammenführen, Teilen, Umsortieren und Konvertieren von PDFs.
-Läuft auf dem eigenen Rechner, wird im Browser bedient und speichert keine Dateien.
+Web-App zum Bearbeiten, Zusammenführen, Teilen, Umsortieren und Konvertieren von PDFs.
 
-```bash
-npm install
-npm run setup      # fragt nach dem Passwort und legt .env.local an
-npm run dev        # http://localhost:3000
-```
+Die Verarbeitung läuft **vollständig im Browser**. Dateien werden nicht hochgeladen und
+verlassen den Rechner nicht — es gibt nichts, was auf einem Server gespeichert werden könnte.
+Dadurch lässt sich die App auf zwei Arten betreiben:
 
-Läuft auf macOS, Windows und Linux. Voraussetzung ist Node.js — siehe
-[Einrichtung](#einrichtung).
+| | **Als Webseite** | **Lokal** |
+|---|---|---|
+| Aufruf | eine Adresse im Browser | `npm run dev` auf dem eigenen Rechner |
+| Installation | keine | Node.js |
+| Text bearbeiten, OCR, Seiten, Teilen, Zusammenführen, PDF → Word | ✓ | ✓ |
+| Word → PDF | — (braucht LibreOffice) | ✓ |
+| Passwortschutz | — | ✓ |
+
+Siehe [Zwei Betriebsarten](#zwei-betriebsarten).
 
 ---
 
 ## Inhalt
 
 - [Was die App kann](#was-die-app-kann)
-- [Einrichtung](#einrichtung)
+- [Zwei Betriebsarten](#zwei-betriebsarten)
+- [Als Webseite veröffentlichen](#als-webseite-veröffentlichen)
+- [Einrichtung](#einrichtung) (lokaler Betrieb)
 - [Wie die Bearbeitung funktioniert](#wie-die-bearbeitung-funktioniert)
 - [Architektur](#architektur)
 - [Optionale Zusatzprogramme](#optionale-zusatzprogramme)
@@ -43,7 +49,99 @@ Dateien entstehen nur bei der Word-Konvertierung und werden sofort danach gelös
 
 ---
 
+## Zwei Betriebsarten
+
+Beide entstehen aus derselben Quelle; der Unterschied ist eine Einstellung beim Bauen.
+
+### Warum das überhaupt geht
+
+Die Bibliotheken, die PDFs lesen und schreiben (`pdf-lib`, `pdf.js`), laufen im Browser
+genauso wie auf einem Server. Es gibt also keinen technischen Grund, eine Datei erst
+hochzuladen, sie dort zu verändern und wieder herunterzuladen. Alles rechnet im Browser.
+
+Das hat drei Folgen:
+
+1. **Die Datei verlässt den Rechner nicht.** Kein Upload, keine Zwischenkopie, nichts, was
+   irgendwo liegen bleiben könnte.
+2. **Es ist schneller**, weil die Übertragung in beide Richtungen entfällt.
+3. **Es braucht keinen Server.** Damit lässt sich die App als gewöhnliche Webseite
+   veröffentlichen und von jedem Gerät nutzen — auch von einem, auf dem sich mangels
+   Administratorrechten nichts installieren lässt.
+
+### Was ohne Server fehlt
+
+Genau zwei Dinge:
+
+**Word → PDF.** Ein `.docx` layoutgetreu darzustellen heisst, das Layout von Word nachzubauen:
+Tabellen, Kopf- und Fusszeilen, Abschnitte, Schriftmetriken, Seitenumbrüche. Dafür braucht es
+LibreOffice — ein ausgewachsenes Programm, das es im Browser nicht gibt. Die Gegenrichtung
+(PDF → Word) funktioniert dagegen auch ohne Server.
+
+**Der Passwortschutz.** Eine Anmeldung braucht eine Stelle, die das Passwort prüft und eine
+Sitzung ausstellt. Ohne Server gibt es die nicht. Eine Abfrage in der Seite selbst wäre
+wirkungslos — jeder könnte sie im Quelltext nachlesen oder überspringen — und deshalb ist
+absichtlich keine eingebaut: eine Anmeldemaske, die nichts schützt, wiegt in falscher
+Sicherheit.
+
+Wichtig für die Einordnung: Der Passwortschutz im lokalen Betrieb sichert nicht die Dokumente,
+sondern den Zugang zur Anwendung. Die Dokumente sind ohnehin geschützt, weil sie den Browser
+nie verlassen. Wer die veröffentlichte Adresse aufruft, sieht das Werkzeug — nie eine Datei.
+
+---
+
+## Als Webseite veröffentlichen
+
+Über GitHub Pages, wie jede andere statische Seite.
+
+### Einmalig einrichten
+
+1. Im Repository auf **Settings → Pages** gehen.
+2. Unter **Source** den Eintrag **GitHub Actions** wählen.
+
+Das war's. Der Arbeitsablauf `.github/workflows/pages.yml` liegt bereits im Projekt und baut
+bei jedem Push auf `main` die Seite neu.
+
+Danach ist die App erreichbar unter:
+
+```
+https://<konto>.github.io/<repository>/
+```
+
+### Von Hand bauen
+
+```
+npm run build:static
+```
+
+Legt die fertigen Dateien in `out/` ab — die lassen sich auf jeden Webserver kopieren. Liegt
+die Seite nicht unter einem Unterpfad, sondern unter einer eigenen Domain:
+
+```
+npm run build:static -- ""
+```
+
+Vorher lokal ansehen:
+
+```
+npx serve out
+```
+
+### Was dabei zu beachten ist
+
+- **Die Adresse ist öffentlich**, wenn das Repository öffentlich ist. Das Werkzeug ist damit
+  für jeden nutzbar — die Dokumente aber nicht einsehbar, weil sie nie übertragen werden.
+  (GitHub Pages aus einem privaten Repository gibt es nur mit GitHub Enterprise.)
+- **Die Seite ist rund 50 MB gross**, hauptsächlich wegen der Bausteine für die Texterkennung.
+  Für den Besucher spielt das keine Rolle: geladen wird nur, was er tatsächlich benutzt.
+- **Die OCR-Sprachdaten** lädt der Arbeitsablauf mit ein. Schlägt das fehl, holt sie
+  tesseract.js beim ersten Gebrauch selbst nach — dann ist einmalig Internet nötig.
+
+---
+
 ## Einrichtung
+
+Dieser Abschnitt beschreibt den **lokalen Betrieb** — nötig für Word → PDF und den
+Passwortschutz. Wer nur die veröffentlichte Webseite nutzt, braucht davon nichts.
 
 ### Schritt 1: Node.js installieren
 
@@ -147,9 +245,13 @@ npm start
 
 ### Von einem anderen Rechner nutzen (ohne dort etwas zu installieren)
 
-Der häufigste Fall: Die App läuft auf einem Rechner — etwa dem Mac — und wird von einem
-zweiten genutzt, auf dem sich nichts installieren lässt, weil die Administratorrechte fehlen.
-Dort genügt ein Browser.
+> Für diesen Fall ist meist die veröffentlichte Webseite der bessere Weg — sie braucht keinen
+> laufenden Rechner im Hintergrund. Siehe
+> [Als Webseite veröffentlichen](#als-webseite-veröffentlichen). Der Weg hier lohnt sich, wenn
+> zusätzlich Word → PDF oder der Passwortschutz gebraucht wird.
+
+Die App läuft auf einem Rechner — etwa dem Mac — und wird von einem zweiten genutzt, auf dem
+sich nichts installieren lässt. Dort genügt ein Browser.
 
 Auf dem Rechner, der die App bereitstellt:
 
@@ -298,39 +400,52 @@ Inhalten klar ist, wo nachzusehen ist.
 ### Überblick
 
 ```
-Browser                                  Server (Node)
-─────────────────────────────────        ──────────────────────────────
-pdf.js      Seite rendern,               pdf-lib     Seiten kopieren, drehen,
-            Textpositionen                           zeichnen, Inhaltsströme
-tesseract.js  Texterkennung              pdf.js      Text mit Position auslesen
-Canvas      Farben messen                docx        Word-Datei schreiben
-                                         LibreOffice Word → PDF
-        │                                        ▲
-        └──── multipart-Upload ──────────────────┘
-              Binärdatei zurück, nichts gespeichert
+Browser  (macht die eigentliche Arbeit)          Server  (nur im lokalen Betrieb)
+─────────────────────────────────────────        ───────────────────────────────
+pdf.js        Seite rendern, Textpositionen      LibreOffice  Word → PDF
+pdf-lib       Seiten kopieren, drehen,           pdf2docx     PDF → Word, optional
+              zeichnen, Inhaltsströme                         mit besserem Layout
+tesseract.js  Texterkennung für Scans            jose         Anmeldung
+docx          Word-Datei schreiben
+Canvas        Hintergrund- und Textfarbe messen
+
+Die Datei bleibt im Browser.                     Erreichbar nur, wenn ein Server läuft.
 ```
 
 ### Warum diese Bibliotheken
 
 | Baustein | Wahl | Begründung |
 |---|---|---|
-| Rahmen | **Next.js** | Oberfläche und Server in einem Prozess, ein Startbefehl. |
-| PDF schreiben | **pdf-lib** | Reines JavaScript, kein Systemprogramm nötig; deckt Kopieren, Drehen, Zeichnen und Inhaltsströme ab. |
+| Rahmen | **Next.js** | Erzeugt aus einer Quelle sowohl die Fassung mit Server als auch reine Dateien für einen statischen Webserver. |
+| PDF schreiben | **pdf-lib** | Reines JavaScript, läuft im Browser wie in Node; deckt Kopieren, Drehen, Zeichnen und Inhaltsströme ab. |
 | PDF lesen | **pdf.js** | Der einzige Renderer, der auch die Position jedes Textfragments liefert — die Grundlage der Bearbeitung. |
 | Texterkennung | **tesseract.js** | Läuft als WebAssembly im Browser, ohne Installation. |
 | Word schreiben | **docx** | Erzeugt .docx-Dateien ohne Office. |
-| Word lesen | **LibreOffice** | Ein .docx layoutgetreu darzustellen heisst, Word-Layout nachzubauen. Dafür gibt es in JavaScript nichts Vergleichbares. |
+| Word lesen | **LibreOffice** | Ein .docx layoutgetreu darzustellen heisst, Word-Layout nachzubauen. Dafür gibt es in JavaScript nichts Vergleichbares — und deshalb fehlt diese Richtung ohne Server. |
 | Anmeldung | **jose** | Signiertes Cookie, keine Datenbank — passend zur zustandslosen App. |
 
-### Wo Arbeit stattfindet und warum
+### Wie eine Bearbeitung abläuft
 
-**Im Browser:** Anzeige, Textpositionen, Texterkennung, Farbmessung. Das hält den Server frei,
-vermeidet Uploads beim Blättern — und gescannte Dokumente verlassen den Rechner nie, weil die
-Texterkennung lokal läuft.
+Der gesamte Weg spielt sich im Browser ab (`lib/client/engine.ts`):
 
-**Auf dem Server:** alles, was das PDF verändert. Der Grund ist nicht Rechenleistung, sondern
-Verlässlichkeit: pdf-lib schreibt dort in einer kontrollierten Umgebung, und die Datei geht als
-fertiger Download zurück.
+1. Die Datei wird über `<input type="file">` eingelesen — sie bleibt im Arbeitsspeicher des
+   Browsers.
+2. pdf.js zeigt sie an und liefert die Textpositionen.
+3. pdf-lib verändert die Bytes.
+4. Das Ergebnis wird als Download angeboten.
+
+Kein Netzwerkzugriff, kein Server, keine Zwischenkopie. Die einzige Ausnahme ist Word → PDF,
+das die Datei kurz an den lokalen Server gibt und dort nach der Umwandlung sofort löscht.
+
+### Ein Quelltext, zwei Fassungen
+
+Dateien mit der Endung `.node.ts` (die Route Handler und die Anmeldeseite) gelten nur im
+Server-Betrieb als Teil der App. Beim statischen Bauen fehlt diese Endung in der Liste
+`pageExtensions`, wodurch Next sie schlicht nicht als Routen erkennt — Route Handler und ein
+Proxy sind bei `output: export` nicht möglich und würden den Build sonst abbrechen.
+
+Dass die App gerade ohne Server läuft, erkennt der Code an `lib/client/mode.ts`; danach richtet
+sich, ob die Anmeldung, der Abmelden-Knopf und Word → PDF angeboten werden.
 
 ### Umgang mit grossen Dokumenten
 
@@ -339,10 +454,10 @@ fertiger Download zurück.
 - Vorschaubilder im Seiten-Bereich entstehen erst, wenn die Kachel in Sichtweite kommt, und
   werden zwischengespeichert — Umsortieren und Drehen lösen kein erneutes Rendern aus.
 - Ein Rendervorgang wird abgebrochen, sobald weitergeblättert wird.
-- Serverseitig wird pro Quelldatei nur einmal kopiert, nicht pro Seite.
+- Beim Umbauen eines Dokuments wird pro Quelldatei nur einmal kopiert, nicht pro Seite.
 
 Gemessen mit einem Dokument aus 120 Seiten und rund 4000 Textfragmenten: Öffnen samt erster
-Seite 0,4 s, Seitenwechsel 0,15 s, Neuaufbau aller 120 Seiten auf dem Server 0,16 s.
+Seite 0,4 s, Seitenwechsel 0,15 s, Neuaufbau aller 120 Seiten 0,16 s.
 
 ### Anmeldung
 
@@ -350,6 +465,15 @@ Ein Passwort aus `APP_PASSWORD`, verglichen in konstanter Zeit. Bei Erfolg wird 
 JWT in einem `HttpOnly`-Cookie gesetzt. Eine Middleware prüft jede Anfrage; API-Aufrufe ohne
 gültige Anmeldung erhalten 401, Seitenaufrufe eine Weiterleitung zum Login. Kein Nutzerkonto,
 keine Datenbank, kein Serverzustand.
+
+Das Cookie trägt die Kennzeichnung `Secure` nur dann, wenn die Verbindung tatsächlich über
+HTTPS läuft — nicht schon deshalb, weil die Anwendung im Produktionsmodus gestartet wurde. Der
+Unterschied ist wichtig, sobald die App über eine Netzwerkadresse genutzt wird: Ein
+`Secure`-Cookie verwirft der Browser über `http://192.168.x.x` kommentarlos, die Anmeldung
+meldet Erfolg, und man landet ohne Fehlermeldung wieder auf dem Login.
+
+Ohne Server (statische Fassung) gibt es keine Anmeldung — siehe
+[Zwei Betriebsarten](#zwei-betriebsarten).
 
 ---
 
@@ -413,45 +537,54 @@ Ehrlich benannt, damit es keine Überraschungen gibt:
 
 ```
 src/
-├── middleware.ts              Zugangsschutz für alle Routen
+├── proxy.ts                   Zugangsschutz (nur Server-Betrieb)
 ├── app/
 │   ├── page.tsx               Arbeitsbereich
-│   ├── login/                 Anmeldung
-│   └── api/
+│   ├── login/page.node.tsx    Anmeldung — ".node" = nur mit Server
+│   └── api/                   alle Route Handler als route.node.ts
 │       ├── auth/              Anmelden, Abmelden
-│       ├── merge/             Zusammenführen
-│       ├── split/             Teilen (PDF oder ZIP)
-│       ├── organize/          Seiten neu aufbauen
-│       ├── edit/              Textänderungen anwenden
+│       ├── merge/ split/ organize/ edit/
+│       │                      HTTP-Zugang zu denselben Funktionen,
+│       │                      die im Browser laufen (für Skripte und Tests)
 │       ├── convert/           Word ↔ PDF
 │       └── capabilities/      Meldet, welche Zusatzprogramme da sind
 ├── lib/
 │   ├── config.ts              Einstellungen aus der Umgebung
 │   ├── auth.ts                Session-Cookie
+│   ├── errors.ts              Eingabefehler von Serverfehlern trennen
 │   ├── http.ts                Gemeinsame Bausteine der API-Routen
-│   ├── pdf/
+│   ├── pdf/                   läuft im Browser wie auf dem Server
 │   │   ├── operations.ts      Zusammenführen, Teilen, Seiten, Textänderungen
 │   │   ├── contentStream.ts   Originaltext aus dem Inhaltsstrom entfernen
 │   │   ├── fonts.ts           Schriftzuordnung und Zeichenvorrat
 │   │   └── types.ts           Gemeinsame Datentypen
 │   ├── convert/
+│   │   ├── types.ts           Datentypen der Textextraktion (ohne Importe)
+│   │   ├── docxBuilder.ts     Word-Datei aus Textpositionen — auch im Browser
 │   │   ├── libreoffice.ts     Word → PDF, inklusive Funktionsprüfung
-│   │   ├── pdfToDocx.ts       PDF → Word, zwei Wege
+│   │   ├── pdfToDocx.ts       PDF → Word auf dem Server (pdf2docx)
 │   │   └── extract.ts         Text mit Position auslesen (Server)
 │   └── client/
+│       ├── engine.ts          Alle PDF-Vorgänge im Browser
+│       ├── mode.ts            Läuft die App mit oder ohne Server?
+│       ├── basePath.ts        Unterpfad für nachgeladene Dateien
 │       ├── pdfjs.ts           pdf.js im Browser
+│       ├── extractText.ts     Text mit Position auslesen (Browser)
 │       ├── textLayer.ts       Textfragmente zu bearbeitbaren Feldern
 │       ├── ocr.ts             Texterkennung
 │       ├── colors.ts          Hintergrund- und Textfarbe messen
-│       └── download.ts        Hochladen und Ergebnis herunterladen
+│       └── download.ts        Ergebnis herunterladen
 └── components/                Oberfläche
 
 scripts/
 ├── setup-env.mjs              Legt .env.local an (npm run setup)
 ├── share.mjs                  Startet die App und zeigt die Netzwerkadresse
+├── build-static.mjs           Baut die Fassung ohne Server (npm run build:static)
 ├── copy-assets.mjs            Laufzeitdateien nach public/ (läuft automatisch)
 ├── fetch-langdata.mjs         Sprachdaten für den Offline-Betrieb
 └── smoke.mjs                  Test über die echten Schnittstellen
+
+.github/workflows/pages.yml    Veröffentlicht die Seite bei jedem Push
 ```
 
 ---
@@ -468,6 +601,13 @@ Einzelseiten, Fehlerbehandlung bei ungültigen Bereichen, Umsortieren mit Drehun
 Mehrfachverwendung derselben Seite, Textersetzung, das tatsächliche Verschwinden des
 Originaltexts, das Erhaltenbleiben des übrigen Texts, Umlaute und Sonderzeichen sowie beide
 Konvertierungsrichtungen.
+
+Die statische Fassung lässt sich so prüfen, wie ein Webserver sie ausliefert:
+
+```bash
+npm run build:static
+npx serve out          # dann http://localhost:3000/PDF.me/
+```
 
 Weitere Prüfungen:
 

@@ -8,6 +8,7 @@
     "dev": "next dev",
     "prebuild": "node scripts/copy-assets.mjs",
     "build": "next build",
+    "build:static": "node scripts/build-static.mjs",
     "start": "next start",
     "share": "node scripts/share.mjs",
     "postinstall": "node scripts/copy-assets.mjs",

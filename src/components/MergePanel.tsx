@@ -3,7 +3,8 @@
 import { useCallback, useState } from "react";
 import { Button, EmptyState, Notice } from "./ui";
 import { FileDropzone } from "./FileDropzone";
-import { ApiError, postAndDownload } from "@/lib/client/download";
+import { downloadResult } from "@/lib/client/download";
+import { mergeFiles } from "@/lib/client/engine";
 
 interface Entry {
   key: string;
@@ -14,6 +15,8 @@ interface Entry {
  * Zusammenführen arbeitet direkt auf den File-Objekten, ohne sie vorher mit
  * pdf.js zu öffnen: für das Aneinanderhängen braucht es keine Vorschau, und
  * bei einem Dutzend grosser Dateien spart das spürbar Zeit und Speicher.
+ *
+ * Gerechnet wird im Browser — die Dateien werden nirgendwohin übertragen.
  */
 export function MergePanel({ initialFiles = [] }: { initialFiles?: File[] }) {
   const [entries, setEntries] = useState<Entry[]>(() =>
@@ -51,11 +54,9 @@ export function MergePanel({ initialFiles = [] }: { initialFiles?: File[] }) {
     setBusy(true);
     setError(null);
     try {
-      const form = new FormData();
-      for (const entry of entries) form.append("files", entry.file);
-      await postAndDownload("/api/merge", form, "zusammengefuehrt.pdf");
+      downloadResult(await mergeFiles(entries.map((entry) => entry.file)));
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "Zusammenführen fehlgeschlagen.");
+      setError(caught instanceof Error ? caught.message : "Zusammenführen fehlgeschlagen.");
     } finally {
       setBusy(false);
     }

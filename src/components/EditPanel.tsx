@@ -5,7 +5,8 @@ import { Button, Notice, Spinner } from "./ui";
 import { sampleBackground, sampleTextColor } from "@/lib/client/colors";
 import { recognizePage, releaseOcrWorker } from "@/lib/client/ocr";
 import { buildEditableItems, textVolume, type EditableItem } from "@/lib/client/textLayer";
-import { ApiError, postAndDownload } from "@/lib/client/download";
+import { downloadResult } from "@/lib/client/download";
+import { applyEdits } from "@/lib/client/engine";
 import { toFile, type LoadedDoc } from "@/lib/client/types";
 import type { PageViewport } from "@/lib/client/pdfjs";
 import type { TextEdit } from "@/lib/pdf/types";
@@ -187,15 +188,12 @@ export function EditPanel({ doc }: { doc: LoadedDoc }) {
     setError(null);
     setSaveReport(null);
     try {
-      const form = new FormData();
-      form.append("file", toFile(doc));
-      form.append("edits", JSON.stringify([...edits.values()]));
-      const { headers } = await postAndDownload("/api/edit", form, "bearbeitet.pdf");
+      const result = await applyEdits(toFile(doc), [...edits.values()]);
+      downloadResult(result);
 
       // Ehrliche Rückmeldung: an manchen Stellen lässt sich der Originaltext
       // nicht eindeutig zuordnen und bleibt unter der Abdeckung stehen.
-      const covered = Number(headers.get("X-Edit-Covered") ?? 0);
-      const removed = Number(headers.get("X-Edit-Removed") ?? 0);
+      const { coveredOnly: covered, removedOriginals: removed } = result;
       setSaveReport(
         covered > 0
           ? `Achtung: Bei ${covered} von ${removed + covered} geänderten Textstellen liess sich der ` +
@@ -205,7 +203,7 @@ export function EditPanel({ doc }: { doc: LoadedDoc }) {
           : null,
       );
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "Speichern fehlgeschlagen.");
+      setError(caught instanceof Error ? caught.message : "Speichern fehlgeschlagen.");
     } finally {
       setSaving(false);
     }

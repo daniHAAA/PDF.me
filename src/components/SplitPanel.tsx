@@ -2,7 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { Button, Notice } from "./ui";
-import { ApiError, postAndDownload } from "@/lib/client/download";
+import { downloadResult } from "@/lib/client/download";
+import { splitFile } from "@/lib/client/engine";
 import { toFile, type LoadedDoc } from "@/lib/client/types";
 
 /**
@@ -53,13 +54,9 @@ export function SplitPanel({ doc }: { doc: LoadedDoc }) {
     setBusy(true);
     setError(null);
     try {
-      const form = new FormData();
-      form.append("file", toFile(doc));
-      form.append("mode", mode);
-      if (mode === "ranges") form.append("ranges", JSON.stringify(parsed.ranges));
-      await postAndDownload("/api/split", form, mode === "single" ? "geteilt.zip" : "teil.pdf");
+      downloadResult(await splitFile(toFile(doc), mode, parsed.ranges));
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "Teilen fehlgeschlagen.");
+      setError(caught instanceof Error ? caught.message : "Teilen fehlgeschlagen.");
     } finally {
       setBusy(false);
     }

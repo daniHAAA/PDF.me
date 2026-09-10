@@ -10,6 +10,7 @@ import { Panel, Notice } from "./ui";
 import { SplitPanel } from "./SplitPanel";
 import { clearThumbnailCache } from "./PageThumbnail";
 import { loadDocument } from "@/lib/client/pdfjs";
+import { hasServer } from "@/lib/client/mode";
 import type { LoadedDoc } from "@/lib/client/types";
 
 type Tool = "edit" | "organize" | "merge" | "split" | "convert";
@@ -122,18 +123,19 @@ export function Workspace() {
           ))}
         </nav>
 
-        <form action="/api/auth/logout" method="post" className="ml-auto">
+        {/* Ohne Server gibt es keine Anmeldung, die sich beenden liesse. */}
+        {hasServer && (
           <button
             type="button"
             onClick={async () => {
               await fetch("/api/auth/logout", { method: "POST" });
               window.location.href = "/login";
             }}
-            className="text-xs text-muted transition hover:text-ink"
+            className="ml-auto text-xs text-muted transition hover:text-ink"
           >
             Abmelden
           </button>
-        </form>
+        )}
       </header>
 
       {docs.length > 0 && (
@@ -190,7 +192,9 @@ export function Workspace() {
       </main>
 
       <footer className="border-t border-line px-6 py-3 text-[11px] text-muted">
-        Dateien werden nicht gespeichert: Verarbeitung im Arbeitsspeicher, Ergebnis direkt als Download.
+        Alle Bearbeitungen laufen direkt in diesem Browser. Die Dateien werden nicht hochgeladen
+        und verlassen diesen Rechner nicht.
+        {hasServer && " Ausnahme: Word → PDF, dafür geht die Datei kurz an den lokalen Server."}
       </footer>
     </div>
   );

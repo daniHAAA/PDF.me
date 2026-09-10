@@ -1,0 +1,68 @@
+# Veröffentlicht die Fassung ohne Server auf GitHub Pages.
+#
+# Nach dem ersten erfolgreichen Lauf ist die App erreichbar unter
+#   https://<konto>.github.io/<repository>/
+#
+# Einmalig einzurichten: Repository → Settings → Pages → "Source" auf
+# "GitHub Actions" stellen.
+
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main, claude/pdf-web-app]
+  # Erlaubt das Auslösen von Hand im Reiter "Actions".
+  workflow_dispatch:
+
+# Nur schreibende Rechte auf Pages, sonst nichts.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Läuft eine Veröffentlichung bereits, wird sie nicht abgebrochen — sonst
+# könnte eine halb übertragene Seite zurückbleiben.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: OCR-Sprachdaten mitliefern
+        # Damit die Texterkennung ohne Zugriff auf ein fremdes CDN auskommt.
+        # Schlägt der Download fehl, wird trotzdem weitergebaut: tesseract.js
+        # lädt die Daten dann beim ersten Gebrauch selbst nach.
+        run: npm run ocr:offline || echo "Sprachdaten nicht geladen - OCR laedt sie spaeter selbst"
+
+      - name: Statische Fassung bauen
+        # Der Unterpfad muss dem Repository-Namen entsprechen, sonst finden
+        # die Seiten ihre eigenen Dateien nicht.
+        run: npm run build:static -- "/${{ github.event.repository.name }}"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

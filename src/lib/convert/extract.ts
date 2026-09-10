@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { classifyFamily, type ExtractedItem, type ExtractedPage } from "./types";
 
 /**
  * Serverseitige Textextraktion mit pdf.js.
@@ -7,26 +8,11 @@ import { join } from "node:path";
  * pdf.js liefert nicht nur Zeichenketten, sondern zu jedem Fragment die
  * Transformationsmatrix — also Position, Grösse und Neigung. Genau daraus lässt
  * sich die Layoutstruktur (Zeilen, Absätze, Ausrichtung) rekonstruieren.
+ *
+ * Das Gegenstück für den Browser steht in lib/client/extractText.ts. Beide
+ * liefern dieselbe Datenstruktur, damit der Rest der Anwendung nicht wissen
+ * muss, wo er läuft.
  */
-
-export interface ExtractedItem {
-  text: string;
-  /** Basislinien-Startpunkt in PDF-Koordinaten (Ursprung unten links). */
-  x: number;
-  y: number;
-  width: number;
-  /** Effektive Schriftgrösse in Punkt. */
-  fontSize: number;
-  bold: boolean;
-  italic: boolean;
-  fontFamily: "sans" | "serif" | "mono";
-}
-
-export interface ExtractedPage {
-  width: number;
-  height: number;
-  items: ExtractedItem[];
-}
 
 /**
  * Pfad zu den Metriken der 14 Standard-Fonts.
@@ -44,15 +30,6 @@ function standardFontDataUrl(): string | undefined {
   const found = candidates.find((path) => existsSync(path));
   // Der abschliessende Trenner ist Pflicht — pdf.js hängt die Dateinamen an.
   return found ? `${found}/` : undefined;
-}
-
-function classifyFamily(name: string): "sans" | "serif" | "mono" {
-  const n = name.toLowerCase();
-  if (/mono|courier|consol/.test(n)) return "mono";
-  // "sans-serif" enthält "serif" — sans muss deshalb zuerst geprüft werden.
-  if (/sans/.test(n)) return "sans";
-  if (/times|serif|georgia|garamond|roman|book|cambria|minion/.test(n)) return "serif";
-  return "sans";
 }
 
 export async function extractPages(bytes: Uint8Array): Promise<ExtractedPage[]> {
@@ -94,7 +71,6 @@ export async function extractPages(bytes: Uint8Array): Promise<ExtractedPage[]> 
           realName = "";
         }
         const styleFamily = content.styles?.[raw.fontName]?.fontFamily ?? "";
-        const nameForClass = realName || styleFamily;
 
         items.push({
           text: raw.str,
@@ -105,7 +81,7 @@ export async function extractPages(bytes: Uint8Array): Promise<ExtractedPage[]> 
           fontSize: Math.abs(scaleY) || Math.abs(scaleX) || 11,
           bold: /bold|black|heavy|semibold/i.test(realName),
           italic: /italic|oblique/i.test(realName),
-          fontFamily: classifyFamily(nameForClass),
+          fontFamily: classifyFamily(realName || styleFamily),
         });
       }
 
@@ -121,10 +97,5 @@ export async function extractPages(bytes: Uint8Array): Promise<ExtractedPage[]> 
   }
 }
 
-/** Gesamter Textumfang — dient als Heuristik "ist das ein Scan?". */
-export function textLength(pages: ExtractedPage[]): number {
-  return pages.reduce(
-    (sum, page) => sum + page.items.reduce((s, item) => s + item.text.trim().length, 0),
-    0,
-  );
-}
+export { textLength } from "./types";
+export type { ExtractedItem, ExtractedPage } from "./types";

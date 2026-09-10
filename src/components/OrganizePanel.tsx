@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, EmptyState, Notice } from "./ui";
 import { FileDropzone } from "./FileDropzone";
 import { PageThumbnail } from "./PageThumbnail";
-import { ApiError, postAndDownload } from "@/lib/client/download";
+import { downloadResult } from "@/lib/client/download";
+import { organizeFiles } from "@/lib/client/engine";
 import { toFile, type LoadedDoc } from "@/lib/client/types";
 
 /** Eine Seite in der Zielreihenfolge. key bleibt über Umsortieren hinweg stabil. */
@@ -100,12 +101,10 @@ export function OrganizePanel({
     setBusy(true);
     setError(null);
     try {
-      const form = new FormData();
       // Reihenfolge der Dateien muss zu sourceIndex passen.
-      for (const source of sources) form.append("files", toFile(source));
-      form.append(
-        "pages",
-        JSON.stringify(
+      downloadResult(
+        await organizeFiles(
+          sources.map(toFile),
           slots.map((slot) => ({
             sourceIndex: slot.sourceIndex,
             pageIndex: slot.pageIndex,
@@ -113,9 +112,8 @@ export function OrganizePanel({
           })),
         ),
       );
-      await postAndDownload("/api/organize", form, "seiten-neu-geordnet.pdf");
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "Speichern fehlgeschlagen.");
+      setError(caught instanceof Error ? caught.message : "Speichern fehlgeschlagen.");
     } finally {
       setBusy(false);
     }

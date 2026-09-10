@@ -2,10 +2,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 /**
- * Zugangsschutz für die gesamte App.
+ * Zugangsschutz für die gesamte App (nur Server-Betrieb).
  *
- * Die Middleware läuft in der Edge-Runtime, deshalb wird hier bewusst NICHT
- * aus lib/auth.ts importiert (das nutzt node:crypto). jose läuft überall.
+ * Hiess bis Next 15 "middleware"; seit Next 16 ist der Name "proxy". Die
+ * Endung ".node.ts" hält die Datei aus dem statischen Build heraus (siehe
+ * pageExtensions in next.config.ts) — ohne Server gibt es nichts, was sie
+ * ausführen könnte.
+ *
+ * Die Prüfung ist hier bewusst eigenständig und importiert NICHT aus
+ * lib/auth.ts: dieses Modul nutzt node:crypto, das im Umfeld dieser Datei
+ * nicht zur Verfügung steht. jose läuft überall.
  */
 
 const PUBLIC_PATHS = ["/login", "/api/auth/login"];
@@ -23,7 +29,7 @@ async function hasValidSession(token: string | undefined): Promise<boolean> {
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {

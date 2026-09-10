@@ -2,6 +2,7 @@ import { PDFDocument, PDFPage, degrees, rgb } from "pdf-lib";
 import { FontCache, sanitizeForWinAnsi } from "./fonts";
 import { removeTextAtPositions } from "./contentStream";
 import { InputError } from "../errors";
+import type { TextExtractor } from "../convert/types";
 import type { TextEdit } from "./types";
 
 /**
@@ -267,10 +268,27 @@ async function buildEdited(
   return { doc, removed, skipped };
 }
 
+/**
+ * @param extractText Liest Text mit Position aus einem PDF. Wird hereingereicht,
+ *   weil pdf.js im Browser und in Node unterschiedlich geladen wird. Fehlt der
+ *   Parameter, entfällt die Nachprüfung und es bleibt beim reinen Übermalen —
+ *   sicher, aber ohne echtes Entfernen.
+ */
 export async function applyTextEdits(
   bytes: Uint8Array,
   edits: TextEdit[],
+  extractText?: TextExtractor,
 ): Promise<EditResult> {
+  if (!extractText) {
+    // Ohne Prüfmöglichkeit wird der Inhaltsstrom nicht angetastet.
+    const safe = await buildEdited(bytes, edits, false);
+    return {
+      bytes: await safe.doc.save(),
+      removedOriginals: 0,
+      coveredOnly: safe.skipped,
+    };
+  }
+
   const attempt = await buildEdited(bytes, edits, true);
   const result = await attempt.doc.save();
 
@@ -282,7 +300,7 @@ export async function applyTextEdits(
   // Lässt sich das Ergebnis nicht mehr lesen oder steht der alte Text noch da,
   // wird die Fassung ohne Eingriff ausgeliefert. Ein bloss übermaltes PDF ist
   // deutlich besser als ein beschädigtes.
-  const verified = await verifyRemoval(result, edits);
+  const verified = await verifyRemoval(result, edits, extractText);
   if (verified) {
     return {
       bytes: result,
@@ -304,13 +322,16 @@ export async function applyTextEdits(
  * lesbar sein und die ersetzten Texte dürfen an ihrer alten Position nicht
  * mehr auftauchen.
  */
-async function verifyRemoval(result: Uint8Array, edits: TextEdit[]): Promise<boolean> {
+async function verifyRemoval(
+  result: Uint8Array,
+  edits: TextEdit[],
+  extractText: TextExtractor,
+): Promise<boolean> {
   const withOriginal = edits.filter((edit) => !edit.fromOcr && edit.originalText?.trim());
   if (withOriginal.length === 0) return true;
 
   try {
-    const { extractPages } = await import("../convert/extract");
-    const pages = await extractPages(result);
+    const pages = await extractText(result);
 
     for (const edit of withOriginal) {
       const page = pages[edit.pageIndex];

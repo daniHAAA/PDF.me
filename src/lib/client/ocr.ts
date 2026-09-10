@@ -1,6 +1,7 @@
 "use client";
 
 import type { PageViewport } from "./pdfjs";
+import { asset } from "./basePath";
 import type { EditableItem } from "./textLayer";
 
 /**
@@ -30,8 +31,8 @@ let langPathCache: string | undefined | null = null;
 async function resolveLangPath(language: string): Promise<string | undefined> {
   if (langPathCache !== null) return langPathCache;
   try {
-    const response = await fetch(`/tessdata/${language}.traineddata.gz`, { method: "HEAD" });
-    langPathCache = response.ok ? "/tessdata" : undefined;
+    const response = await fetch(asset(`/tessdata/${language}.traineddata.gz`), { method: "HEAD" });
+    langPathCache = response.ok ? asset("/tessdata") : undefined;
   } catch {
     langPathCache = undefined;
   }
@@ -61,8 +62,8 @@ async function getWorker(
        * eigenen Rechner läuft, wäre damit ohne Internet funktionsunfähig.
        * scripts/copy-assets.mjs legt die Dateien bei der Installation ab.
        */
-      workerPath: "/tesseract/worker.min.js",
-      corePath: "/tesseract/core",
+      workerPath: asset("/tesseract/worker.min.js"),
+      corePath: asset("/tesseract/core"),
       ...(langPath ? { langPath } : {}),
       logger: (message: { status: string; progress: number }) => {
         onProgress?.(message.status, message.progress);
