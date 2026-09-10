@@ -9,6 +9,7 @@
     "prebuild": "node scripts/copy-assets.mjs",
     "build": "next build",
     "start": "next start",
+    "share": "node scripts/share.mjs",
     "postinstall": "node scripts/copy-assets.mjs",
     "setup": "node scripts/setup-env.mjs",
     "typecheck": "tsc --noEmit",

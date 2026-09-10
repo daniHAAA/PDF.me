@@ -40,16 +40,44 @@ export async function verifySessionToken(token: string | undefined): Promise<boo
   }
 }
 
-export function sessionCookieOptions() {
+/**
+ * Läuft diese Anfrage über HTTPS?
+ *
+ * Hinter einem Reverse Proxy (nginx, Traefik, Cloudflare) sieht die App selbst
+ * nur HTTP; die ursprüngliche Verbindung steht dann in X-Forwarded-Proto.
+ */
+function isSecureRequest(request: Request): boolean {
+  const forwarded = request.headers.get("x-forwarded-proto");
+  if (forwarded) return forwarded.split(",")[0].trim() === "https";
+  try {
+    return new URL(request.url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function sessionCookieOptions(request: Request) {
   return {
     name: SESSION_COOKIE,
     httpOnly: true,
     sameSite: "lax" as const,
     path: "/",
     maxAge: config.sessionHours * 3600,
-    // Lokal läuft die App über http://localhost — secure würde das Cookie dort
-    // verwerfen. In Produktion (HTTPS) schaltet es sich automatisch scharf.
-    secure: process.env.NODE_ENV === "production",
+    /*
+     * secure richtet sich nach der tatsächlichen Verbindung, NICHT nach
+     * NODE_ENV.
+     *
+     * Der Unterschied ist entscheidend, sobald die App im Netzwerk genutzt
+     * wird: Ein Secure-Cookie verwirft der Browser über http://192.168.x.x
+     * kommentarlos. Die Anmeldung meldet dann Erfolg, das Cookie wird nie
+     * gespeichert, und man landet ohne jede Fehlermeldung wieder auf dem
+     * Login — ein Fehler, der sich kaum finden lässt. Über localhost fällt
+     * er nicht auf, weil Browser localhost als sicheren Kontext behandeln.
+     *
+     * Sobald ein HTTPS-Zugang davorsteht, schaltet sich das Flag von selbst
+     * scharf.
+     */
+    secure: isSecureRequest(request),
   };
 }
 

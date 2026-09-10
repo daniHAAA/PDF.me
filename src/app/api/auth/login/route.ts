@@ -20,6 +20,6 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ ok: true });
-  response.cookies.set({ ...sessionCookieOptions(), value: await createSessionToken() });
+  response.cookies.set({ ...sessionCookieOptions(request), value: await createSessionToken() });
   return response;
 }

@@ -145,12 +145,71 @@ npm run build
 npm start
 ```
 
-### Für Kollegen im gleichen Netz freigeben
+### Von einem anderen Rechner nutzen (ohne dort etwas zu installieren)
 
-`npm start` lauscht auch auf der Netzwerkadresse des Rechners; Kollegen erreichen die App dann
-unter `http://<deine-ip>:3000` mit demselben Passwort. Der Zugang ist damit im lokalen Netz
-offen — für den Einsatz darüber hinaus gehören ein HTTPS-Zugang davor und persönliche
-Zugangsdaten statt eines gemeinsamen Passworts.
+Der häufigste Fall: Die App läuft auf einem Rechner — etwa dem Mac — und wird von einem
+zweiten genutzt, auf dem sich nichts installieren lässt, weil die Administratorrechte fehlen.
+Dort genügt ein Browser.
+
+Auf dem Rechner, der die App bereitstellt:
+
+```
+npm run build
+npm run share
+```
+
+`npm run share` zeigt die Adresse an, unter der die App im Netz erreichbar ist:
+
+```
+  Auf diesem Rechner:
+    http://localhost:3000
+
+  Von anderen Geräten im selben Netz:
+    http://192.168.1.42:3000
+```
+
+Diese zweite Adresse auf dem anderen Rechner im Browser öffnen — dasselbe Passwort, derselbe
+Funktionsumfang. Ein Lesezeichen darauf, und es fühlt sich an wie jede andere interne Anwendung.
+
+Voraussetzungen und Grenzen:
+
+- **Beide Geräte im selben Netz** (gleiches WLAN oder Netzwerkkabel). Im Homeoffice über VPN
+  klappt es nur, wenn das VPN die Verbindung zwischen den Geräten zulässt.
+- **Der bereitstellende Rechner muss wach bleiben.** Klappt der Mac zu, ist die App weg.
+  Dagegen hilft `caffeinate -i npm run share` im Terminal oder
+  *Systemeinstellungen → Batterie → Automatischen Ruhezustand deaktivieren*.
+- **Beim ersten Start fragt macOS**, ob Node eingehende Verbindungen annehmen darf —
+  „Erlauben" wählen. Wurde versehentlich abgelehnt, findet sich der Schalter unter
+  *Systemeinstellungen → Netzwerk → Firewall → Optionen*.
+- **Die Verbindung ist unverschlüsselt** (`http://`, nicht `https://`) und die App ist damit
+  für jeden im selben Netz sichtbar. Geschützt ist sie nur durch das Passwort. Im Firmen- oder
+  Heimnetz ist das vertretbar; für einen Zugang über das Internet gehört ein HTTPS-Zugang
+  davor (siehe unten).
+- **Die IP-Adresse kann sich ändern**, wenn der Router sie neu vergibt. Dann zeigt
+  `npm run share` einfach die neue an. Wer das dauerhaft vermeiden will, vergibt im Router eine
+  feste Adresse für den Rechner.
+
+### Auf einem Server betreiben
+
+Wenn die App dauerhaft laufen soll, ohne dass ein Arbeitsrechner dafür wach bleiben muss,
+gehört sie auf einen Server — eine Maschine im Firmennetz oder einen gemieteten Server.
+
+Zu beachten ist dabei:
+
+- **Ein durchgehend laufender Node-Prozess ist nötig.** Plattformen, die nur einzelne
+  Funktionen ausführen (etwa Vercel in der Standardeinstellung), passen nicht: Word → PDF
+  startet LibreOffice als eigenes Programm, und grosse Dateien überschreiten die dortigen
+  Grenzen für Anfragedauer und Datenmenge. Geeignet ist alles, was einen Container oder eine
+  virtuelle Maschine bereitstellt.
+- **LibreOffice muss auf dem Server installiert sein**, sonst fehlt Word → PDF.
+- **HTTPS davor.** Sobald der Zugang über HTTPS läuft, schaltet die App das Sitzungs-Cookie
+  automatisch auf `Secure` — dafür ist nichts zu konfigurieren.
+- **Ein gemeinsames Passwort reicht dann nicht mehr.** Für mehrere Personen gehören
+  persönliche Zugangsdaten her, damit nachvollziehbar bleibt, wer zugreift.
+- **Datenschutz.** Sobald die App nicht mehr auf dem eigenen Rechner läuft, wandern die
+  hochgeladenen Dokumente über das Netz zu diesem Server. Die App speichert dort zwar nichts,
+  aber wo der Server steht und wer ihn betreibt, ist bei Gäste- und Vertragsdokumenten eine
+  Frage, die vorher geklärt sein will.
 
 ### Wenn etwas nicht läuft
 
@@ -160,6 +219,8 @@ Zugangsdaten statt eines gemeinsamen Passworts.
 | `command not found: npm` (macOS) | dasselbe | Schritt 1, danach Terminal neu öffnen |
 | `Umgebungsvariable APP_PASSWORD fehlt` | `.env.local` fehlt | `npm run setup` |
 | `EADDRINUSE … 3000` | Port belegt, meist von einem älteren Start | Anderes Fenster schliessen, oder `npm run dev -- -p 3001` |
+| Anmeldung springt ohne Fehler auf den Login zurück | Veraltete Fassung: das Sitzungs-Cookie war auf `Secure` gesetzt und wurde über `http://` verworfen | Aktuellen Stand holen (`git pull`) |
+| Anderer Rechner erreicht die Adresse nicht | Nicht dasselbe Netz, oder die Firewall blockt | Beide Geräte im selben WLAN; macOS-Firewall-Abfrage mit „Erlauben" beantworten |
 | Word → PDF meldet fehlendes LibreOffice | Schritt 2 übersprungen | LibreOffice installieren, danach Server neu starten |
 
 ## Wie die Bearbeitung funktioniert
@@ -387,6 +448,7 @@ src/
 
 scripts/
 ├── setup-env.mjs              Legt .env.local an (npm run setup)
+├── share.mjs                  Startet die App und zeigt die Netzwerkadresse
 ├── copy-assets.mjs            Laufzeitdateien nach public/ (läuft automatisch)
 ├── fetch-langdata.mjs         Sprachdaten für den Offline-Betrieb
 └── smoke.mjs                  Test über die echten Schnittstellen
