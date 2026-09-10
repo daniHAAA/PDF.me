@@ -98,8 +98,18 @@ nie verlassen. Wer die veröffentlichte Adresse aufruft, sieht das Werkzeug — 
 1. Im Repository auf **Settings → Pages** gehen.
 2. Unter **Source** den Eintrag **GitHub Actions** wählen.
 
-Das war's. Der Arbeitsablauf `.github/workflows/pages.yml` liegt bereits im Projekt und baut
-bei jedem Push auf `main` die Seite neu.
+Dieser Schritt lässt sich nicht automatisieren: Der Token eines Arbeitsablaufs darf Pages
+nicht einschalten (`Resource not accessible by integration`), das ist einer Person mit
+Verwaltungsrecht am Repository vorbehalten. Solange die Einstellung fehlt, baut der
+Arbeitsablauf die Seite zwar fertig, bricht aber beim Veröffentlichen ab mit:
+
+```
+Get Pages site failed. Please verify that the repository has Pages enabled
+and configured to build using GitHub Actions
+```
+
+Danach genügt ein Push — oder im Reiter **Actions** den Arbeitsablauf „GitHub Pages" von Hand
+starten, ohne auf den nächsten Push zu warten.
 
 Danach ist die App erreichbar unter:
 
